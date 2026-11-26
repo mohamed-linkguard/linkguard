@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LinkGuard | ماسح وفاحص أمان الروابط الذكي</title>
+  <!-- خط القاهرة العربي -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- مكتبة Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- مكتبة Tesseract.js للتعرف على الروابط عبر الكاميرا/الصور -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      background-color: #030610;
+      background-image:
+        radial-gradient(circle at 12% 10%, rgba(16, 185, 129, 0.2) 0%, transparent 42%),
+        radial-gradient(circle at 88% 18%, rgba(56, 189, 248, 0.22) 0%, transparent 45%),
+        radial-gradient(circle at 50% 95%, rgba(99, 102, 241, 0.2) 0%, transparent 50%),
+        linear-gradient(180deg, #050917 0%, #02040a 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .bg-cyber-grid {
+      background-size: 38px 38px;
+      background-image:
+        linear-gradient(to right, rgba(148, 163, 184, 0.045) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+      mask-image: radial-gradient(ellipse at center, black 45%, transparent 85%);
+      -webkit-mask-image: radial-gradient(ellipse at center, black 45%, transparent 85%);
+    }
+
+    @keyframes ambientDrift {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(18px, -22px) scale(1.07); }
+    }
+
+    .orb-glow {
+      animation: ambientDrift 11s ease-in-out infinite;
+    }
+
+    .orb-glow-alt {
+      animation: ambientDrift 14s ease-in-out infinite reverse;
+    }
+
+    .glass-panel {
+      background: linear-gradient(155deg, rgba(15, 23, 42, 0.86), rgba(9, 14, 28, 0.72));
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow:
+        0 25px 60px -15px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+    }
+
+    .btn-glow {
+      box-shadow: 0 10px 28px -6px rgba(16, 185, 129, 0.45);
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .btn-glow:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 32px -6px rgba(34, 211, 238, 0.55);
+    }
+
+    .btn-glow:active {
+      transform: translateY(1px);
+    }
+
+    @keyframes scanLine {
+      0% { top: 8%; opacity: 0.4; }
+      50% { top: 88%; opacity: 1; }
+      100% { top: 8%; opacity: 0.4; }
+    }
+
+    .scanner-beam {
+      position: absolute;
+      left: 6%;
+      right: 6%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #22d3ee, #10b981, #22d3ee, transparent);
+      box-shadow: 0 0 16px #22d3ee;
+      border-radius: 999px;
+      animation: scanLine 2.4s ease-in-out infinite;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .animate-fade-up {
+      animation: fadeUp 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="text-slate-100 flex flex-col items-center justify-start p-4 sm:p-6">
+
+  <!-- خلفية هندسية وهالات ضوئية متوهجة -->
+  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+    <div class="absolute inset-0 bg-cyber-grid"></div>
+    <div class="orb-glow absolute -top-24 -right-24 w-80 h-80 sm:w-[440px] sm:h-[440px] rounded-full bg-emerald-500/15 blur-3xl"></div>
+    <div class="orb-glow-alt absolute top-1/3 -left-24 w-72 h-72 sm:w-[400px] sm:h-[400px] rounded-full bg-cyan-500/15 blur-3xl"></div>
+    <div class="orb-glow absolute -bottom-24 right-1/4 w-80 h-80 sm:w-[420px] sm:h-[420px] rounded-full bg-indigo-600/15 blur-3xl"></div>
+  </div>
+
+  <!-- الحاوية الرئيسية -->
+  <main class="relative z-10 w-full max-w-xl mx-auto space-y-5 my-auto">
+
+    <!-- نافذة تسجيل اسم الزائر عند الدخول -->
+    <div id="visitor-gate-modal" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4">
+      <div class="glass-panel w-full max-w-md rounded-3xl p-6 sm:p-7 text-center space-y-4 animate-fade-up border border-cyan-500/30">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center shadow-lg">
+          <svg class="w-9 h-9 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+          </svg>
+        </div>
+        <h2 class="text-xl sm:text-2xl font-extrabold text-white">أهلاً بك في LinkGuard 🛡️</h2>
+        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+          اكتب اسمك أو لقبك للدخول إلى فاحص أمان الروابط المباشر عبر الويب
+        </p>
+        <input
+          id="visitor-name-input"
+          type="text"
+          maxlength="35"
+          placeholder="اكتب اسمك هنا..."
+          class="w-full bg-slate-950/90 border border-slate-700 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 focus:outline-none rounded-2xl py-3.5 px-4 text-sm text-center text-white placeholder-slate-500"
+        />
+        <p id="visitor-gate-error" class="hidden text-xs font-bold text-rose-400">من فضلك اكتب اسمك أولاً!</p>
+        <button
+          id="enter-app-btn"
+          type="button"
+          class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-extrabold text-base btn-glow cursor-pointer"
+        >
+          دخول للتطبيق 🚀
+        </button>
+      </div>
+    </div>
+
+    <!-- نافذة لوحة تحكم المالك (كلمة السر + قائمة الزوار) -->
+    <div id="admin-modal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4">
+      <div class="glass-panel w-full max-w-lg rounded-3xl p-5 sm:p-6 space-y-4 border border-indigo-500/30 max-h-[88vh] flex flex-col">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">👑</span>
+            <h3 class="text-base sm:text-lg font-extrabold text-white">لوحة متابعة زوار التطبيق</h3>
+          </div>
+          <button id="close-admin-btn" type="button" class="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer">
+            إغلاق ✕
+          </button>
+        </div>
+
+        <!-- شاشة إدخال كلمة السر -->
+        <div id="admin-login-box" class="space-y-3 py-2">
+          <p class="text-xs sm:text-sm text-slate-300 text-center">أدخل كلمة سر المالك لعرض سجل الزوار المباشر:</p>
+          <input
+            id="admin-pass-input"
+            type="password"
+            placeholder="كلمة السر (الافتراضية: 1234)"
+            class="w-full bg-slate-950/90 border border-slate-700 focus:border-indigo-400 focus:outline-none rounded-2xl py-3 px-4 text-sm text-center text-white"
+          />
+          <p id="admin-pass-error" class="hidden text-xs font-bold text-rose-400 text-center">كلمة السر غير صحيحة!</p>
+          <button id="unlock-admin-btn" type="button" class="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm cursor-pointer">
+            فتح لوحة الزوار 🔓
+          </button>
+        </div>
+
+        <!-- قائمة الزوار المسجلين -->
+        <div id="admin-visitors-panel" class="hidden space-y-3 overflow-y-auto flex-1 pr-1">
+          <div class="flex items-center justify-between bg-slate-900/80 rounded-2xl p-3 border border-slate-800 text-xs">
+            <span class="text-slate-300">إجمالي الزيارات المسجلة:</span>
+            <span id="total-visitors-badge" class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-extrabold">0 زيارة</span>
+          </div>
+          <div id="admin-visitors-list" class="space-y-2.5 text-xs">
+            <p class="text-slate-400 text-center py-6">جاري تحميل قائمة الزوار...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- الهيدر الفاخر -->
+    <header class="text-center pt-1">
+      <!-- شعار الدرع المتوهج -->
+      <div class="relative w-16 h-16 mx-auto mb-3.5">
+        <div class="absolute inset-0 rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-400 blur-lg opacity-55"></div>
+        <div class="relative w-full h-full rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 flex items-center justify-center shadow-xl border border-white/25">
+          <svg class="w-9 h-9 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/25 text-emerald-300 text-[11px] sm:text-xs font-bold mb-2.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        LinkGuard Web • نسخة ويب فورية بدون تحميل
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold bg-gradient-to-l from-emerald-300 via-cyan-200 to-indigo-300 bg-clip-text text-transparent tracking-tight">
+        ماسح وفاحص الروابط الذكي
+      </h1>
+      <p class="text-slate-400 text-xs sm:text-sm mt-1.5 max-w-md mx-auto leading-relaxed">
+        افتح اللينك فوراً وافحص أمان الروابط واكشف التزوير والروابط المختصرة قبل فتحها
+      </p>
+      <div id="welcome-user-pill" class="hidden mt-2.5 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-700/80 text-xs text-cyan-300 font-bold">
+        <span>👤 مرحباً، <strong id="active-visitor-label">زائر</strong></span>
+      </div>
+    </header>
+
+    <!-- بطاقة الإدخال والمسح -->
+    <section class="glass-panel rounded-3xl p-5 sm:p-6 space-y-4">
+      <!-- أزرار التبديل بين لصق الرابط أو المسح بالكاميرا -->
+      <div class="grid grid-cols-2 gap-2 bg-slate-950/75 p-1.5 rounded-2xl border border-slate-800/80">
+        <button id="tab-paste-btn" type="button" class="py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 shadow-md transition-all cursor-pointer">
+          فحص رابط نصي 🔗
+        </button>
+        <button id="tab-camera-btn" type="button" class="py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold text-slate-300 hover:text-white transition-all cursor-pointer">
+          مسح بالكاميرا / صورة 📷
+        </button>
+      </div>
+
+      <!-- وضع 1: لصق أو كتابة الرابط -->
+      <div id="paste-mode-box" class="space-y-3">
+        <div class="relative flex items-center">
+          <input
+            id="url-input"
+            type="text"
+            dir="ltr"
+            placeholder="https://example.com أو الصق أي رابط مشبوه..."
+            class="w-full bg-slate-950/85 border border-slate-700/90 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 focus:outline-none rounded-2xl py-3.5 pr-4 pl-24 text-sm text-left text-slate-100 placeholder-slate-500 transition-all"
+          />
+          <button
+            id="paste-clipboard-btn"
+            type="button"
+            class="absolute left-2 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+          >
+            لصق 📋
+          </button>
+        </div>
+
+        <!-- أمثلة سريعة للتجربة -->
+        <div class="flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs text-slate-400">
+          <span>جرّب مثال:</span>
+          <button type="button" data-url="https://www.google.com" class="sample-link px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-emerald-300 border border-slate-700/60 cursor-pointer">
+            رابط آمن
+          </button>
+          <button type="button" data-url="https://bit.ly/3xSampleLink" class="sample-link px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-slate-700/60 cursor-pointer">
+            رابط مختصر
+          </button>
+          <button type="button" data-url="http://faceb00k-security-verify.xyz/login" class="sample-link px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-rose-300 border border-slate-700/60 cursor-pointer">
+            رابط مزيف
+          </button>
+        </div>
+
+        <button
+          id="scan-btn"
+          type="button"
+          class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-extrabold text-base btn-glow cursor-pointer"
+        >
+          بدء الفحص الأمني الآن 🛡️
+        </button>
+      </div>
+
+      <!-- وضع 2: مسح الرابط بالكاميرا أو رفع صورة -->
+      <div id="camera-mode-box" class="hidden space-y-3">
+        <div class="relative w-full h-56 bg-slate-950 rounded-2xl overflow-hidden border border-slate-700/80 flex items-center justify-center">
+          <video id="camera-video" autoplay playsinline class="hidden w-full h-full object-cover"></video>
+          <canvas id="camera-canvas" class="hidden"></canvas>
+          <div id="scanner-overlay" class="hidden pointer-events-none">
+            <div class="scanner-beam"></div>
+          </div>
+          <div id="camera-placeholder" class="text-center p-4 space-y-2">
+            <div class="text-3xl">📸</div>
+            <p class="text-xs sm:text-sm text-slate-300 font-bold">وجّه الكاميرا نحو أي رابط مطبوع أو على شاشة</p>
+            <p class="text-[11px] text-slate-400">سيتم استخراج الرابط وفحص أمانه تلقائياً قبل الفتح</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <button id="start-camera-btn" type="button" class="py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer">
+            تشغيل الكاميرا 🎥
+          </button>
+          <button id="capture-ocr-btn" type="button" disabled class="py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer">
+            التقاط وقراءة الرابط 🔍
+          </button>
+        </div>
+
+        <div class="pt-1 border-t border-slate-800/80 text-center">
+          <label class="inline-flex items-center gap-2 text-xs text-cyan-300 hover:text-cyan-200 font-bold cursor-pointer py-1">
+            <span>أو اختر صورة/لقطة شاشة تحتوي على رابط</span>
+            <input id="image-upload" type="file" accept="image/*" class="hidden" />
+          </label>
+        </div>
+
+        <div id="ocr-status" class="hidden text-center text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5"></div>
+      </div>
+
+      <!-- رسالة تنبيه داخلية -->
+      <div id="alert-box" class="hidden rounded-2xl p-3 text-xs sm:text-sm font-bold text-center"></div>
+    </section>
+
+    <!-- بطاقة نتيجة الفحص -->
+    <section id="result-card" class="hidden glass-panel rounded-3xl p-5 sm:p-6 space-y-4 animate-fade-up">
+      <!-- شريط الحالة العلوي -->
+      <div id="status-header" class="rounded-2xl p-4 flex items-center gap-3.5 border">
+        <div id="status-icon" class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center justify-between gap-2">
+            <h2 id="status-title" class="text-base sm:text-lg font-extrabold truncate">نتيجة الفحص</h2>
+            <span id="risk-score-badge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold"></span>
+          </div>
+          <p id="status-subtitle" class="text-xs sm:text-sm opacity-90 mt-0.5"></p>
+        </div>
+      </div>
+
+      <!-- تفاصيل النطاق والبروتوكول -->
+      <div class="bg-slate-950/75 rounded-2xl p-4 border border-slate-800/90 space-y-2.5 text-xs sm:text-sm">
+        <div class="flex justify-between items-center gap-2">
+          <span class="text-slate-400">النطاق الأساسي (Domain):</span>
+          <span id="detail-domain" dir="ltr" class="font-bold text-cyan-300 truncate max-w-[60%]">-</span>
+        </div>
+        <div class="flex justify-between items-center gap-2">
+          <span class="text-slate-400">تشفير الاتصال:</span>
+          <span id="detail-protocol" class="font-bold">-</span>
+        </div>
+        <div class="flex justify-between items-center gap-2">
+          <span class="text-slate-400">نوع الرابط:</span>
+          <span id="detail-type" class="font-bold text-slate-200">-</span>
+        </div>
+      </div>
+
+      <!-- قائمة مؤشرات الأمان والمخاطر -->
+      <div class="space-y-2">
+        <h3 class="text-xs font-bold text-slate-400">تقرير التحليل الأمني:</h3>
+        <ul id="findings-list" class="space-y-2 text-xs sm:text-sm"></ul>
+      </div>
+
+      <!-- أزرار الإجراءات بعد الفحص -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+        <a
+          id="open-link-btn"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="py-3 px-4 rounded-2xl text-center font-extrabold text-sm transition-all flex items-center justify-center gap-2"
+        >
+          <span>فتح الرابط</span>
+          <span>↗️</span>
+        </a>
+        <button
+          id="copy-clean-btn"
+          type="button"
+          class="py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm border border-slate-700 transition-colors cursor-pointer"
+        >
+          نسخ الرابط النظيف 📋
+        </button>
+      </div>
+    </section>
+
+    <!-- سجل الفحوصات السابقة -->
+    <section class="glass-panel rounded-3xl p-4 sm:p-5 space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs sm:text-sm font-extrabold text-slate-300 flex items-center gap-2">
+          <span>🕒</span>
+          <span>آخر الروابط المفحوصة</span>
+        </h3>
+        <button id="clear-history-btn" type="button" class="text-[11px] text-rose-400 hover:text-rose-300 font-bold cursor-pointer">
+          مسح السجل
+        </button>
+      </div>
+      <div id="history-list" class="space-y-2 text-xs">
+        <p class="text-slate-500 text-center py-3">لا توجد روابط مفحوصة بعد</p>
+      </div>
+    </section>
+
+    <!-- تذييل أنيق + زر لوحة المالك -->
+    <footer class="text-center text-[11px] text-slate-500 pb-2 space-y-2">
+      <div>LinkGuard Web Link • يعمل مباشرة عبر المتصفح بدون متجر تطبيقات</div>
+      <button id="open-admin-btn" type="button" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-cyan-300 border border-slate-800 transition-colors cursor-pointer">
+        <span>🔐</span>
+        <span>لوحة متابعة الزوار (للمالك)</span>
+      </button>
+    </footer>
+
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // تهيئة الاتصال السحابي لحفظ ومشاهدة الزوار
+    const appId = typeof __app_id !== "undefined" ? __app_id : "linkguard-default-app";
+    let db = null;
+    let auth = null;
+    let currentUser = null;
+    let currentVisitorDocId = null;
+    let currentVisitorName = "";
+
+    async function initCloudTracking() {
+      try {
+        if (typeof __firebase_config === "undefined") return;
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+
+        if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
+          const cred = await signInWithCustomToken(auth, __initial_auth_token);
+          currentUser = cred.user;
+        } else {
+          const cred = await signInAnonymously(auth);
+          currentUser = cred.user;
+        }
+      } catch (err) {
+        console.warn("Cloud tracking initialization skipped:", err);
+      }
+    }
+
+    initCloudTracking();
+
+    // كشف نوع جهاز الزائر تلقائياً
+    function detectDeviceInfo() {
+      const ua = navigator.userAgent || "";
+      if (/iPhone|iPad|iPod/i.test(ua)) return "آيفون / iOS 📱";
+      if (/Android/i.test(ua)) return "أندرويد 📱";
+      if (/Windows/i.test(ua)) return "كمبيوتر Windows 💻";
+      if (/Mac/i.test(ua)) return "ماك Mac 💻";
+      return "متصفح ويب 🌐";
+    }
+
+    // كشف التطبيق أو المصدر الذي أتى منه الزائر
+    function detectSourceApp() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const fromParam = (params.get("from") || params.get("src") || params.get("utm_source") || "").toLowerCase();
+        const ref = (document.referrer || "").toLowerCase();
+        const ua = (navigator.userAgent || "").toLowerCase();
+
+        if (fromParam.includes("whatsapp") || ref.includes("whatsapp") || ua.includes("whatsapp")) return "واتساب 💬";
+        if (fromParam.includes("telegram") || ref.includes("t.me") || ref.includes("telegram")) return "تيليجرام ✈️";
+        if (fromParam.includes("instagram") || ref.includes("instagram") || ua.includes("instagram")) return "إنستجرام 📸";
+        if (fromParam.includes("facebook") || ref.includes("facebook") || ua.includes("fbav") || ua.includes("fban")) return "فيسبوك 📘";
+        if (fromParam.includes("tiktok") || ref.includes("tiktok") || ua.includes("tiktok")) return "تيك توك 🎵";
+        if (fromParam.includes("snapchat") || ref.includes("snapchat") || ua.includes("snapchat")) return "سناب شات 👻";
+        if (fromParam) return `تطبيق (${fromParam}) 🔗`;
+
+        if (ref) {
+          try {
+            const refHost = new URL(ref).hostname.replace(/^www\./, "");
+            return `عبر ${refHost} 🌐`;
+          } catch (e) {
+            return "عبر رابط خارجي 🌐";
+          }
+        }
+        return "فتح مباشر / متصفح 🌐";
+      } catch (e) {
+        return "متصفح ويب 🌐";
+      }
+    }
+
+    // تسجيل دخول الزائر في قاعدة البيانات السحابية
+    async function registerVisitorEntry(name) {
+      currentVisitorName = name;
+      document.getElementById("active-visitor-label").textContent = name;
+      document.getElementById("welcome-user-pill").classList.remove("hidden");
+
+      if (!db || !currentUser) return;
+      try {
+        const visitorsCol = collection(db, "artifacts", appId, "public", "data", "app_visitors");
+        const docRef = await addDoc(visitorsCol, {
+          name: name,
+          device: detectDeviceInfo(),
+          sourceApp: detectSourceApp(),
+          enteredAt: Date.now(),
+          formattedTime: new Date().toLocaleString("ar-EG", {
+            dateStyle: "short",
+            timeStyle: "short"
+          }),
+          lastScannedDomain: "لم يفحص رابطاً بعد"
+        });
+        currentVisitorDocId = docRef.id;
+      } catch (e) {
+        console.warn("Could not log visitor:", e);
+      }
+    }
+
+    // تسجيل آخر رابط فحصه الزائر
+    async function logVisitorScanActivity(hostname) {
+      if (!db || !currentUser || !currentVisitorName) return;
+      try {
+        const scansCol = collection(db, "artifacts", appId, "public", "data", "visitor_scans");
+        await addDoc(scansCol, {
+          visitorName: currentVisitorName,
+          domain: hostname,
+          device: detectDeviceInfo(),
+          scannedAt: Date.now(),
+          formattedTime: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })
+        });
+      } catch (e) {}
+    }
+
+    // عناصر نافذة الترحيب ولوحة المالك
+    const visitorGateModal = document.getElementById("visitor-gate-modal");
+    const visitorNameInput = document.getElementById("visitor-name-input");
+    const visitorGateError = document.getElementById("visitor-gate-error");
+    const enterAppBtn = document.getElementById("enter-app-btn");
+
+    const openAdminBtn = document.getElementById("open-admin-btn");
+    const adminModal = document.getElementById("admin-modal");
+    const closeAdminBtn = document.getElementById("close-admin-btn");
+    const adminLoginBox = document.getElementById("admin-login-box");
+    const adminPassInput = document.getElementById("admin-pass-input");
+    const adminPassError = document.getElementById("admin-pass-error");
+    const unlockAdminBtn = document.getElementById("unlock-admin-btn");
+    const adminVisitorsPanel = document.getElementById("admin-visitors-panel");
+    const adminVisitorsList = document.getElementById("admin-visitors-list");
+    const totalVisitorsBadge = document.getElementById("total-visitors-badge");
+
+    const OWNER_PASSCODE = "1234";
+    let unsubscribeVisitors = null;
+
+    function handleEnterApp() {
+      const name = (visitorNameInput.value || "").trim();
+      if (!name) {
+        visitorGateError.classList.remove("hidden");
+        visitorNameInput.focus();
+        return;
+      }
+      visitorGateError.classList.add("hidden");
+      visitorGateModal.classList.add("hidden");
+      registerVisitorEntry(name);
+    }
+
+    enterAppBtn.addEventListener("click", handleEnterApp);
+    visitorNameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleEnterApp();
+    });
+
+    openAdminBtn.addEventListener("click", () => {
+      adminModal.classList.remove("hidden");
+      adminPassInput.value = "";
+      adminPassError.classList.add("hidden");
+    });
+
+    closeAdminBtn.addEventListener("click", () => {
+      adminModal.classList.add("hidden");
+    });
+
+    unlockAdminBtn.addEventListener("click", () => {
+      if (adminPassInput.value === OWNER_PASSCODE) {
+        adminLoginBox.classList.add("hidden");
+        adminVisitorsPanel.classList.remove("hidden");
+        subscribeToVisitorsList();
+      } else {
+        adminPassError.classList.remove("hidden");
+      }
+    });
+
+    function subscribeToVisitorsList() {
+      if (!db || !currentUser) {
+        adminVisitorsList.innerHTML = `<p class="text-amber-300 text-center py-4">التتبع السحابي يعمل تلقائياً عند فتح التطبيق عبر الرابط المشارك.</p>`;
+        return;
+      }
+      if (unsubscribeVisitors) unsubscribeVisitors();
+
+      const visitorsCol = collection(db, "artifacts", appId, "public", "data", "app_visitors");
+      unsubscribeVisitors = onSnapshot(
+        visitorsCol,
+        (snapshot) => {
+          const items = [];
+          snapshot.forEach((docSnap) => items.push({ id: docSnap.id, ...docSnap.data() }));
+          // ترتيب من الأحدث للأقدم في الذاكرة
+          items.sort((a, b) => (b.enteredAt || 0) - (a.enteredAt || 0));
+
+          totalVisitorsBadge.textContent = `${items.length} زيارة`;
+
+          if (!items.length) {
+            adminVisitorsList.innerHTML = `<p class="text-slate-400 text-center py-6">لا يوجد زوار مسجلون حتى الآن</p>`;
+            return;
+          }
+
+          adminVisitorsList.innerHTML = "";
+          items.forEach((v) => {
+            const card = document.createElement("div");
+            card.className = "bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3";
+            card.innerHTML = `
+              <div class="space-y-1 min-w-0">
+                <div class="font-extrabold text-sm text-cyan-300 truncate">👤 ${v.name || "زائر"}</div>
+                <div class="text-[11px] text-emerald-300 font-bold">📍 المصدر: ${v.sourceApp || "متصفح ويب 🌐"}</div>
+                <div class="text-[11px] text-slate-400">${v.device || "غير معروف"}</div>
+              </div>
+              <div class="text-left shrink-0">
+                <span class="inline-block px-2.5 py-1 rounded-xl bg-slate-800 text-slate-200 font-bold text-[11px]">
+                  🕒 ${v.formattedTime || ""}
+                </span>
+              </div>
+            `;
+            adminVisitorsList.appendChild(card);
+          });
+        },
+        (error) => {
+          adminVisitorsList.innerHTML = `<p class="text-rose-400 text-center py-4">تعذر تحميل سجل الزوار حالياً.</p>`;
+        }
+      );
+    }
+
+    // قوائم قواعد الفحص الأمني (روابط مختصرة، نطاقات مشبوهة، علامات تجارية مستهدفة بالتزوير)
+    const SHORTENERS = [
+      "bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd",
+      "buff.ly", "adf.ly", "cutt.ly", "rb.gy", "shorturl.at", "tiny.cc"
+    ];
+
+    const SUSPICIOUS_TLDS = [
+      ".xyz", ".top", ".tk", ".ml", ".ga", ".cf", ".gq", ".click", ".loan", ".zip", ".mov", ".work"
+    ];
+
+    const PHISHING_KEYWORDS = [
+      "login", "verify", "secure", "account", "update", "bank", "free", "gift",
+      "winner", "prize", "confirm", "wallet", "support", "bonus", "urgent", "signin"
+    ];
+
+    const BRAND_IMPERSONATIONS = [
+      { brand: "facebook", fakes: ["faceb00k", "facebok", "fb-security", "facebook-verify"] },
+      { brand: "whatsapp", fakes: ["whatsap", "whatssapp", "whatsapp-gift", "watsapp"] },
+      { brand: "instagram", fakes: ["instagran", "instagrarn", "insta-verify", "instagram-badge"] },
+      { brand: "google", fakes: ["g00gle", "googel", "google-security"] },
+      { brand: "paypal", fakes: ["paypa1", "paypai", "paypal-update"] },
+      { brand: "vodafone", fakes: ["vodaf0ne", "vodafone-gift", "vodafone-cash-free"] },
+      { brand: "instapay", fakes: ["instapay-gift", "instapay-verify", "lnstapay"] }
+    ];
+
+    const HISTORY_KEY = "linkguard_scan_history_v1";
+    let cameraStream = null;
+    let lastScannedUrl = "";
+
+    // عناصر الواجهة
+    const tabPasteBtn = document.getElementById("tab-paste-btn");
+    const tabCameraBtn = document.getElementById("tab-camera-btn");
+    const pasteModeBox = document.getElementById("paste-mode-box");
+    const cameraModeBox = document.getElementById("camera-mode-box");
+
+    const urlInput = document.getElementById("url-input");
+    const pasteClipboardBtn = document.getElementById("paste-clipboard-btn");
+    const scanBtn = document.getElementById("scan-btn");
+    const alertBox = document.getElementById("alert-box");
+
+    const startCameraBtn = document.getElementById("start-camera-btn");
+    const captureOcrBtn = document.getElementById("capture-ocr-btn");
+    const cameraVideo = document.getElementById("camera-video");
+    const cameraCanvas = document.getElementById("camera-canvas");
+    const cameraPlaceholder = document.getElementById("camera-placeholder");
+    const scannerOverlay = document.getElementById("scanner-overlay");
+    const imageUpload = document.getElementById("image-upload");
+    const ocrStatus = document.getElementById("ocr-status");
+
+    const resultCard = document.getElementById("result-card");
+    const statusHeader = document.getElementById("status-header");
+    const statusIcon = document.getElementById("status-icon");
+    const statusTitle = document.getElementById("status-title");
+    const statusSubtitle = document.getElementById("status-subtitle");
+    const riskScoreBadge = document.getElementById("risk-score-badge");
+    const detailDomain = document.getElementById("detail-domain");
+    const detailProtocol = document.getElementById("detail-protocol");
+    const detailType = document.getElementById("detail-type");
+    const findingsList = document.getElementById("findings-list");
+    const openLinkBtn = document.getElementById("open-link-btn");
+    const copyCleanBtn = document.getElementById("copy-clean-btn");
+    const historyList = document.getElementById("history-list");
+    const clearHistoryBtn = document.getElementById("clear-history-btn");
+
+    // إظهار رسالة تنبيه مخصصة
+    function showAlert(msg, type = "info") {
+      const styles = {
+        info: "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40",
+        error: "bg-rose-500/20 text-rose-300 border border-rose-500/40",
+        success: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+      };
+      alertBox.className = `rounded-2xl p-3 text-xs sm:text-sm font-bold text-center ${styles[type] || styles.info}`;
+      alertBox.textContent = msg;
+      alertBox.classList.remove("hidden");
+      setTimeout(() => alertBox.classList.add("hidden"), 4000);
+    }
+
+    // التبديل بين وضع النص ووضع الكاميرا
+    tabPasteBtn.addEventListener("click", () => {
+      stopCamera();
+      pasteModeBox.classList.remove("hidden");
+      cameraModeBox.classList.add("hidden");
+      tabPasteBtn.className = "py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 shadow-md transition-all cursor-pointer";
+      tabCameraBtn.className = "py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold text-slate-300 hover:text-white transition-all cursor-pointer";
+    });
+
+    tabCameraBtn.addEventListener("click", () => {
+      pasteModeBox.classList.add("hidden");
+      cameraModeBox.classList.remove("hidden");
+      tabCameraBtn.className = "py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 shadow-md transition-all cursor-pointer";
+      tabPasteBtn.className = "py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold text-slate-300 hover:text-white transition-all cursor-pointer";
+    });
+
+    // زر اللصق من الحافظة
+    pasteClipboardBtn.addEventListener("click", async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            urlInput.value = text.trim();
+            showAlert("تم لصق الرابط بنجاح! اضغط على بدء الفحص.", "success");
+            return;
+          }
+        }
+      } catch (e) {
+        // تجاهل القيود في بعض المتصفحات والتركيز على الحقل
+      }
+      urlInput.focus();
+      showAlert("اضغط Ctrl+V أو الصق الرابط يدوياً في الخانة.", "info");
+    });
+
+    // أزرار الأمثلة التجريبية
+    document.querySelectorAll(".sample-link").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        urlInput.value = btn.dataset.url;
+        analyzeUrl(btn.dataset.url);
+      });
+    });
+
+    // تشغيل الفحص عند الضغط على الزر أو Enter
+    scanBtn.addEventListener("click", () => analyzeUrl(urlInput.value));
+    urlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") analyzeUrl(urlInput.value);
+    });
+
+    // محرك تحليل وفحص أمان الرابط
+    function analyzeUrl(rawInput) {
+      const trimmed = (rawInput || "").trim();
+      if (!trimmed) {
+        showAlert("من فضلك أدخل رابطاً أولاً للفحص!", "error");
+        return;
+      }
+
+      // إضافة البروتوكول الافتراضي إذا لم يُكتب
+      const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+      let parsed;
+      try {
+        parsed = new URL(normalized);
+        if (!parsed.hostname.includes(".")) throw new Error("Invalid domain");
+      } catch (e) {
+        showAlert("الرابط المدخل غير صحيح! تأكد من كتابة اسم النطاق بشكل سليم.", "error");
+        return;
+      }
+
+      const hostname = parsed.hostname.toLowerCase();
+      const fullLower = parsed.href.toLowerCase();
+      const isHttps = parsed.protocol === "https:";
+      const findings = [];
+      let riskScore = 0; // 0 = آمن تماماً، 100 = خطر مرتفع جداً
+
+      // 1. فحص التشفير HTTPS
+      if (isHttps) {
+        findings.push({ level: "safe", text: "الاتصال مشفر ببروتوكول HTTPS لحماية البيانات أثناء النقل." });
+      } else {
+        riskScore += 30;
+        findings.push({ level: "danger", text: "الرابط غير مشفر (HTTP)! قد يتم التجسس على أي بيانات تدخلها." });
+      }
+
+      // 2. فحص الروابط المختصرة
+      const isShortener = SHORTENERS.some((s) => hostname === s || hostname.endsWith(`.${s}`));
+      if (isShortener) {
+        riskScore += 35;
+        findings.push({
+          level: "warn",
+          text: `هذا رابط مختصر عبر (${hostname}) يُخفي الوجهة الحقيقية للموقع؛ يُنصح بالحذر.`
+        });
+      }
+
+      // 3. فحص انتحال أسماء العلامات التجارية الشهيرة
+      let impersonatedBrand = null;
+      for (const item of BRAND_IMPERSONATIONS) {
+        if (item.fakes.some((fake) => hostname.includes(fake)) && !hostname.endsWith(`${item.brand}.com`)) {
+          impersonatedBrand = item.brand;
+          break;
+        }
+      }
+      if (impersonatedBrand) {
+        riskScore += 55;
+        findings.push({
+          level: "danger",
+          text: `تحذير احتيال! النطاق يحاول تقليد موقع (${impersonatedBrand}) لسرقة الحسابات (Phishing).`
+        });
+      }
+
+      // 4. فحص الامتدادات عالية المخاطر
+      const badTld = SUSPICIOUS_TLDS.find((tld) => hostname.endsWith(tld));
+      if (badTld) {
+        riskScore += 25;
+        findings.push({
+          level: "warn",
+          text: `نطاق ينتهي بامتداد (${badTld}) الذي يُستخدم بكثرة في المواقع الإعلانية والمشبوهة.`
+        });
+      }
+
+      // 5. فحص الكلمات الخادعة في الرابط
+      const matchedKeywords = PHISHING_KEYWORDS.filter((kw) => fullLower.includes(kw));
+      if (matchedKeywords.length >= 2) {
+        riskScore += 25;
+        findings.push({
+          level: "warn",
+          text: `يحتوي الرابط على كلمات استدراج شائعة (${matchedKeywords.slice(0, 3).join(", ")}) لطلب بيانات حساسة.`
+        });
+      }
+
+      // 6. فحص وجود عنوان IP مباشر بدلاً من اسم نطاق أو رمز @ الخادع
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) {
+        riskScore += 45;
+        findings.push({ level: "danger", text: "الرابط يشير إلى عنوان IP مباشر بدلاً من اسم موقع رسمي!" });
+      }
+      if (parsed.href.includes("@")) {
+        riskScore += 45;
+        findings.push({ level: "danger", text: "يحتوي الرابط على رمز (@) الذي قد يوجهك لموقع مختلف عن الظاهر." });
+      }
+
+      // 7. فحص معلمات التتبع الزائدة وتنظيف الرابط
+      const cleanUrlObj = new URL(parsed.href);
+      const trackingParams = ["utm_source", "utm_medium", "utm_campaign", "fbclid", "gclid", "ref"];
+      let removedTrackers = 0;
+      trackingParams.forEach((p) => {
+        if (cleanUrlObj.searchParams.has(p)) {
+          cleanUrlObj.searchParams.delete(p);
+          removedTrackers++;
+        }
+      });
+      if (removedTrackers > 0) {
+        findings.push({
+          level: "info",
+          text: `تم اكتشاف وإزالة (${removedTrackers}) من أكواد التتبع الإعلانية من الرابط النظيف.`
+        });
+      }
+
+      if (findings.length === 1 && isHttps && riskScore === 0) {
+        findings.push({ level: "safe", text: "لم يتم رصد أي مؤشرات تزوير أو برمجيات خبيثة في بنية الرابط." });
+      }
+
+      riskScore = Math.min(100, riskScore);
+      lastScannedUrl = cleanUrlObj.href;
+
+      renderScanResult({
+        url: parsed.href,
+        cleanUrl: cleanUrlObj.href,
+        hostname,
+        isHttps,
+        isShortener,
+        riskScore,
+        findings
+      });
+
+      saveToHistory({
+        url: parsed.href,
+        hostname,
+        riskScore,
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })
+      });
+
+      logVisitorScanActivity(hostname);
+    }
+
+    // عرض نتيجة الفحص في البطاقة
+    function renderScanResult(data) {
+      resultCard.classList.remove("hidden");
+      detailDomain.textContent = data.hostname;
+      detailProtocol.textContent = data.isHttps ? "آمن ومشفر (HTTPS) 🔒" : "غير مشفر (HTTP) ⚠️";
+      detailProtocol.className = `font-bold ${data.isHttps ? "text-emerald-400" : "text-rose-400"}`;
+      detailType.textContent = data.isShortener ? "رابط مختصر (Redirect)" : "رابط مباشر";
+
+      if (data.riskScore <= 20) {
+        statusHeader.className = "rounded-2xl p-4 flex items-center gap-3.5 border bg-emerald-500/15 border-emerald-500/35 text-emerald-200";
+        statusIcon.className = "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 bg-emerald-500/20";
+        statusIcon.textContent = "✅";
+        statusTitle.textContent = "الرابط يبدو آمناً";
+        statusSubtitle.textContent = "يمكنك فتح الرابط بأمان، لا توجد مؤشرات احتيال.";
+        riskScoreBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-500/25 text-emerald-300";
+        riskScoreBadge.textContent = `أمان ${100 - data.riskScore}%`;
+        openLinkBtn.className = "py-3 px-4 rounded-2xl text-center font-extrabold text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all flex items-center justify-center gap-2";
+      } else if (data.riskScore <= 50) {
+        statusHeader.className = "rounded-2xl p-4 flex items-center gap-3.5 border bg-amber-500/15 border-amber-500/35 text-amber-200";
+        statusIcon.className = "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 bg-amber-500/20";
+        statusIcon.textContent = "⚠️";
+        statusTitle.textContent = "رابط مشبوه — توخَّ الحذر";
+        statusSubtitle.textContent = "يحتوي على عناصر مخفية أو مختصرة؛ لا تدخل كلمات مرور.";
+        riskScoreBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-500/25 text-amber-300";
+        riskScoreBadge.textContent = `خطورة ${data.riskScore}%`;
+        openLinkBtn.className = "py-3 px-4 rounded-2xl text-center font-extrabold text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all flex items-center justify-center gap-2";
+      } else {
+        statusHeader.className = "rounded-2xl p-4 flex items-center gap-3.5 border bg-rose-500/15 border-rose-500/40 text-rose-200";
+        statusIcon.className = "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 bg-rose-500/20";
+        statusIcon.textContent = "🚨";
+        statusTitle.textContent = "تحذير! رابط خطير أو مزيف";
+        statusSubtitle.textContent = "ننصح بشدة بعدم فتح هذا الرابط لحماية حساباتك.";
+        riskScoreBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-rose-500/25 text-rose-300";
+        riskScoreBadge.textContent = `خطورة ${data.riskScore}%`;
+        openLinkBtn.className = "py-3 px-4 rounded-2xl text-center font-extrabold text-sm bg-rose-600/80 hover:bg-rose-500 text-white transition-all flex items-center justify-center gap-2";
+      }
+
+      openLinkBtn.href = data.cleanUrl;
+
+      // عرض قائمة الملاحظات
+      findingsList.innerHTML = "";
+      const iconMap = { safe: "🟢", warn: "🟡", danger: "🔴", info: "🔵" };
+      data.findings.forEach((f) => {
+        const li = document.createElement("li");
+        li.className = "bg-slate-900/60 border border-slate-800/90 rounded-xl p-3 flex items-start gap-2.5 text-slate-200";
+        li.innerHTML = `<span class="shrink-0">${iconMap[f.level] || "•"}</span><span>${f.text}</span>`;
+        findingsList.appendChild(li);
+      });
+
+      resultCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    // نسخ الرابط النظيف باستخدام execCommand لضمان العمل داخل كل البيئات
+    copyCleanBtn.addEventListener("click", () => {
+      if (!lastScannedUrl) return;
+      const tempInput = document.createElement("input");
+      tempInput.value = lastScannedUrl;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      try {
+        document.execCommand("copy");
+        showAlert("تم نسخ الرابط النظيف إلى الحافظة بنجاح ✅", "success");
+      } catch (e) {
+        showAlert("تعذر النسخ التلقائي، يمكنك نسخ الرابط يدوياً.", "error");
+      }
+      document.body.removeChild(tempInput);
+    });
+
+    // إدارة الكاميرا والتعرف الضوئي (OCR) لاستخراج الروابط من الصور
+    startCameraBtn.addEventListener("click", async () => {
+      if (cameraStream) {
+        stopCamera();
+        return;
+      }
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false
+        });
+        cameraVideo.srcObject = cameraStream;
+        cameraVideo.classList.remove("hidden");
+        cameraPlaceholder.classList.add("hidden");
+        scannerOverlay.classList.remove("hidden");
+        captureOcrBtn.disabled = false;
+        startCameraBtn.textContent = "إيقاف الكاميرا ⏹️";
+      } catch (err) {
+        showAlert("تعذر الوصول إلى الكاميرا. تأكد من منح الصلاحية أو ارفع صورة بالأسفل.", "error");
+      }
+    });
+
+    function stopCamera() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((t) => t.stop());
+        cameraStream = null;
+      }
+      cameraVideo.classList.add("hidden");
+      scannerOverlay.classList.add("hidden");
+      cameraPlaceholder.classList.remove("hidden");
+      captureOcrBtn.disabled = true;
+      startCameraBtn.textContent = "تشغيل الكاميرا 🎥";
+    }
+
+    captureOcrBtn.addEventListener("click", async () => {
+      if (!cameraStream) return;
+      cameraCanvas.width = cameraVideo.videoWidth || 640;
+      cameraCanvas.height = cameraVideo.videoHeight || 480;
+      const ctx = cameraCanvas.getContext("2d");
+      ctx.drawImage(cameraVideo, 0, 0, cameraCanvas.width, cameraCanvas.height);
+      const dataUrl = cameraCanvas.toDataURL("image/png");
+      await extractUrlFromImage(dataUrl);
+    });
+
+    imageUpload.addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        await extractUrlFromImage(ev.target.result);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    async function extractUrlFromImage(imageSource) {
+      ocrStatus.classList.remove("hidden");
+      ocrStatus.textContent = "جاري قراءة الصورة واستخراج الروابط... ⏳";
+      try {
+        const result = await Tesseract.recognize(imageSource, "eng");
+        const text = (result.data && result.data.text) || "";
+        const urlRegex = /(https?:\/\/[^\s]+|(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/i;
+        const match = text.match(urlRegex);
+
+        if (match && match[0]) {
+          const foundUrl = match[0].replace(/[),.;]+$/, "");
+          ocrStatus.textContent = `تم التقاط الرابط: ${foundUrl} ✅`;
+          urlInput.value = foundUrl;
+          analyzeUrl(foundUrl);
+        } else {
+          ocrStatus.textContent = "لم يتم العثور على رابط واضح في الصورة، حاول تقريب الكاميرا أكثر.";
+        }
+      } catch (err) {
+        ocrStatus.textContent = "حدث خطأ أثناء قراءة الصورة. جرّب مرة أخرى.";
+      }
+    }
+
+    // حفظ وعرض سجل الفحوصات في LocalStorage
+    function getHistory() {
+      try {
+        return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveToHistory(entry) {
+      try {
+        const list = getHistory().filter((item) => item.url !== entry.url);
+        list.unshift(entry);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 6)));
+        renderHistory();
+      } catch (e) {}
+    }
+
+    function renderHistory() {
+      const list = getHistory();
+      if (!list.length) {
+        historyList.innerHTML = `<p class="text-slate-500 text-center py-3">لا توجد روابط مفحوصة بعد</p>`;
+        return;
+      }
+
+      historyList.innerHTML = "";
+      list.forEach((item) => {
+        const badge =
+          item.riskScore <= 20
+            ? `<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">آمن</span>`
+            : item.riskScore <= 50
+            ? `<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">مشبوه</span>`
+            : `<span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold">خطير</span>`;
+
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "w-full text-right bg-slate-900/70 hover:bg-slate-800/90 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between gap-2 transition-colors cursor-pointer";
+        row.innerHTML = `
+          <div class="min-w-0 flex-1">
+            <div dir="ltr" class="text-left font-bold text-slate-200 truncate">${item.hostname}</div>
+            <div class="text-[11px] text-slate-500">${item.time}</div>
+          </div>
+          ${badge}
+        `;
+        row.addEventListener("click", () => {
+          urlInput.value = item.url;
+          analyzeUrl(item.url);
+        });
+        historyList.appendChild(row);
+      });
+    }
+
+    clearHistoryBtn.addEventListener("click", () => {
+      try {
+        localStorage.removeItem(HISTORY_KEY);
+      } catch (e) {}
+      renderHistory();
+    });
+
+    // تحميل السجل عند البدء
+    renderHistory();
+  </script>
+</body>
+</html>
